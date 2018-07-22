@@ -9,6 +9,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <assert.h>
+#include <fcntl.h>
+
+
+#define READ 0
+#define WRITE 1
+
+
 
 /*
 This program does the following.
@@ -314,7 +321,14 @@ void scheduler(int signum)
     it = processes.begin();
     while(it != processes.end()){
         if((*it)->state == NEW){
+            int child2parent[2];
+            int parent2child[2];
+            assertsyscall(pipe(child2parent), == 0);
+            assertsyscall(pipe(parent2child), == 0);
             running->switches += 1;
+            int fl; 
+            assertsyscall((fl = fcntl(child2parent[READ], F_GETFL)), != -1);
+            assertsyscall(fcntl(child2parent[READ], F_SETFL, fl | O_NONBLOCK), == 0); 
             (*it)->state = RUNNING;
             (*it)->started = sys_time;
             (*it)->ppid = getpid();
@@ -324,10 +338,16 @@ void scheduler(int signum)
                 perror("Fork failed");
             }
             else if(running->pid == 0){
-                execl(running->name, running->name, NULL);
+                // close the ends we should't use
+                assertsyscall(close(child2parent[READ]), == 0); 
+                assertsyscall(close(parent2child[WRITE]), == 0); 
+                execl(running->name, running->name, child2parent[WRITE], parent2child[READ], NULL);
                 return;
             }
             else{
+                // close the ends we should't use
+                assertsyscall(close(child2parent[WRITE]), == 0); 
+                assertsyscall(close(parent2child[READ]), == 0); 
                 WRITES("starting process: ");
                 WRITEI(running->pid);
                 WRITES("\n---- leaving scheduler\n");
