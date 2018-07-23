@@ -132,12 +132,14 @@ enum STATE { NEW, RUNNING, WAITING, READY, TERMINATED };
 struct PCB
 {
     STATE state;
-    const char *name;   // name of the executable
-    int pid;            // process id from fork();
-    int ppid;           // parent process id
-    int interrupts;     // number of times interrupted
-    int switches;       // may be < interrupts
-    int started;        // the time this process started
+    const char *name;    // name of the executable
+    int pid;             // process id from fork();
+    int ppid;            // parent process id
+    int interrupts;      // number of times interrupted
+    int switches;        // may be < interrupts
+    int started;         // the time this process started
+    int child2parent[2]; // child2parent pipe
+    int parent2child[2]; // parent2child pipe
 };
 
 PCB *running;
@@ -321,14 +323,16 @@ void scheduler(int signum)
     it = processes.begin();
     while(it != processes.end()){
         if((*it)->state == NEW){
-            int child2parent[2];
-            int parent2child[2];
-            assertsyscall(pipe(child2parent), == 0);
-            assertsyscall(pipe(parent2child), == 0);
+            (*it)->child2parent = child2parent[2];
+            (*it)->parent2child = parent2child[2];
+            assertsyscall(pipe((*it)->child2parent), == 0);
+            assertsyscall(pipe((*it)->parent2child), == 0);
             running->switches += 1;
+
+            // From sjb80--for non blocking reads by parent/kernel
             int fl; 
-            assertsyscall((fl = fcntl(child2parent[READ], F_GETFL)), != -1);
-            assertsyscall(fcntl(child2parent[READ], F_SETFL, fl | O_NONBLOCK), == 0); 
+            assertsyscall((fl = fcntl((*it)->child2parent[READ], F_GETFL)), != -1);
+            assertsyscall(fcntl((*it)->child2parent[READ], F_SETFL, fl | O_NONBLOCK), == 0); 
             (*it)->state = RUNNING;
             (*it)->started = sys_time;
             (*it)->ppid = getpid();
@@ -339,8 +343,13 @@ void scheduler(int signum)
             }
             else if(running->pid == 0){
                 // close the ends we should't use
-                assertsyscall(close(child2parent[READ]), == 0); 
-                assertsyscall(close(parent2child[WRITE]), == 0); 
+                assertsyscall(close(running->child2parent[READ]), == 0); 
+                assertsyscall(close(running->parent2child[WRITE]), == 0);
+ 
+                // From sjb80; assigns filedes 3 and 4 to pipe ends in the child
+                assertsyscall(dup2(running->parent2child[WRITE], 3), == 3);
+                assertsyscall(dup2(running->child2parent[READ], 4), == 4);
+
                 execl(running->name, running->name, child2parent[WRITE], parent2child[READ], NULL);
                 return;
             }
@@ -348,6 +357,7 @@ void scheduler(int signum)
                 // close the ends we should't use
                 assertsyscall(close(child2parent[WRITE]), == 0); 
                 assertsyscall(close(parent2child[READ]), == 0); 
+
                 WRITES("starting process: ");
                 WRITEI(running->pid);
                 WRITES("\n---- leaving scheduler\n");

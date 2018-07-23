@@ -16,7 +16,14 @@ int main(int argc, char *argv[]) {
     parent2child = strtol(argv[2], NULL, 10);
 
     assert(kill(parent, SIGTRAP) == 0);
-    //write
+    write(child2parent, 1, 4);
+    
+    // read
+    // print
+    // write
+    // read...
 
+    // Assert >= 0, error is -1
+    
 
 }
