@@ -140,6 +140,7 @@ struct PCB
     int started;         // the time this process started
     int child2parent[2]; // child2parent pipe
     int parent2child[2]; // parent2child pipe
+    int fd;              // file descriptor
 };
 
 PCB *running;
@@ -283,6 +284,7 @@ void send_signals(int signal, int pid, int interval, int number)
     assertsyscall(kill(0, SIGTERM), != 0);
 }
 
+
 struct sigaction *create_handler(int signum, void(*handler)(int))
 {
     struct sigaction *action = new(struct sigaction);
@@ -299,6 +301,49 @@ struct sigaction *create_handler(int signum, void(*handler)(int))
     {
         action->sa_flags = SA_NOCLDSTOP | SA_RESTART;
     }
+    else if(signum == SIGTRAP)
+    {
+        it = processes.begin();
+        while(it != processes.end()){
+            // Check if read is available
+            if(poll((*it)->fd) > 0){
+                break;
+            }
+            it++;
+        }
+       
+
+        char buffer[1024];
+        int len;
+        assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
+        buffer[len] = 0;
+
+
+
+        // How to poll child processes?
+
+        if(buffer[0] == '1') 
+        {
+            // Send system time (include chrono) and std::chrono::system_clock::now()
+            assertsyscall(write((*it)->parent2child[WRITE], std::chrono::system_clock::now(), 32);
+        }
+        else if(buffer[0] == '2')
+        {
+            // Return the calling processes info -- so, send pid of self?
+            assertsyscall(write((*it)->parent2child[WRITE], (*it)->ppid, 32);
+        }
+        else if(buffer[0] == '3')
+        {
+            // Return the list of all processes
+            // assertsyscall(write((*it)->parent2child[WRITE],
+        }
+        else if(buffer[0] == '4')
+        {
+            // output to stdout until null found
+            char *out << fflush(stdout);
+            assertsyscall(write((*it)->parent2child[WRITE], out, 128);
+        }
+    }
     else
     {
         action->sa_flags =  SA_RESTART;
@@ -308,6 +353,7 @@ struct sigaction *create_handler(int signum, void(*handler)(int))
     assert(sigaction(signum, action, NULL) == 0);
     return(action);
 }
+
 
 void scheduler(int signum)
 {
@@ -333,6 +379,7 @@ void scheduler(int signum)
             int fl; 
             assertsyscall((fl = fcntl((*it)->child2parent[READ], F_GETFL)), != -1);
             assertsyscall(fcntl((*it)->child2parent[READ], F_SETFL, fl | O_NONBLOCK), == 0); 
+            (*it)->fd = fl;
             (*it)->state = RUNNING;
             (*it)->started = sys_time;
             (*it)->ppid = getpid();
@@ -350,13 +397,13 @@ void scheduler(int signum)
                 assertsyscall(dup2(running->parent2child[WRITE], 3), == 3);
                 assertsyscall(dup2(running->child2parent[READ], 4), == 4);
 
-                execl(running->name, running->name, child2parent[WRITE], parent2child[READ], NULL);
+                execl(running->name, running->name, NULL);
                 return;
             }
             else{
                 // close the ends we should't use
-                assertsyscall(close(child2parent[WRITE]), == 0); 
-                assertsyscall(close(parent2child[READ]), == 0); 
+                assertsyscall(close(running->child2parent[WRITE]), == 0); 
+                assertsyscall(close(running->parent2child[READ]), == 0); 
 
                 WRITES("starting process: ");
                 WRITEI(running->pid);
@@ -478,6 +525,11 @@ void boot()
         perror("fork");
     }
 }
+
+
+//void handler 
+
+
 
 void create_idle()
 {
