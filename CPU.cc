@@ -154,6 +154,7 @@ int sys_time;
 int timer;
 struct sigaction *alarm_handler;
 struct sigaction *child_handler;
+struct sigaction *pipe_handler;
 
 /*
 ** Async-safe integer to a string. i is assumed to be positive. The number
@@ -280,6 +281,9 @@ void send_signals(int signal, int pid, int interval, int number)
     dmess("at end of send_signals");
     delete(alarm_handler);
     delete(child_handler);
+   
+    // Should I delete this here or at the end?
+    delete(pipe_handler);
     delete(idle_pcb);
     assertsyscall(kill(0, SIGTERM), != 0);
 }

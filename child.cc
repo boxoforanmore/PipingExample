@@ -23,13 +23,13 @@ int main(int argc, char *argv[]) {
     assertsyscall(pipe(child2parent), == 0);
     assertsyscall(pipe(parent2child), == 0);
  
-    pid_t parent = getpid();
+    pid_t parent = getppid();
 
     //child2parent = strtol(argv[1], NULL, 10);
     //parent2child = strtol(argv[2], NULL, 10);
 
     // 
-    assertsyscall(write(child2parent[WRITE], 1, 4), != -1);
+    assertsyscall(write(child2parent[WRITE], '1', 4), != -1);
     assert(kill(parent, SIGTRAP) == 0); 
  
     // 1. Should read and print sys_time from pipe 
