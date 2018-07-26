@@ -58,7 +58,6 @@ int main(int argc, char *argv[]) {
 
 
     // 4. Should read and print to stdout until null found
-    char four[2] = "4";
     //strcat(four, buffer);
     assertsyscall(write(WRITE, "4", 2), != -1);
     assert(kill(parent, SIGTRAP) == 0);
