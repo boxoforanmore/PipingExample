@@ -140,8 +140,6 @@ struct PCB
     int started;            // the time this process started
     int child2parent[2];    // child2parent pipe
     int parent2child[2];    // parent2child pipe
-    int process2kernel[2];  // process2kernel fd
-    int kernel2process[2];  // kernel2process fd
     //int fd;              // file descriptor
 };
 
@@ -201,11 +199,11 @@ int eye2eh(int i, char *buf, int bufsize, int base)
 
 
 // Am expecting 103 characters per process
-char *fill_processes(){
+char* fill_processes(){
     iter = processes.begin();
 
     // 1
-    char procList[1] = "";// = "";
+    char *procList = "";// = "";
     char name[15] =    "name:         ";
     char pid[15] =     "pid:          ";
     char ppid[15] =    "ppid:         ";
@@ -281,7 +279,7 @@ void sigtrap_handler(int signum) {
                     assertsyscall(write((*it)->child2parent[READ], calling, strlen(calling)), != -1);
                 }
                 else if(buffer[0] == '4') {
-                    char buf4[1] = "";
+                    //char buf4[1] = "";
                     //for(int k = 1; k < len; k++) {
                     //    strcat(buf4, buffer[k]);
                     //}
