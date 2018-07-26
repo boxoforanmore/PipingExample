@@ -1,4 +1,4 @@
-
+[![Build Status](https://travis-ci.com/boxoforanmore/PipingExample.svg?branch=master)](https://travis-ci.com/boxoforanmore/PipingExample)
 
 
 -CPU.cc is a round-robining process selector that creates pipes and acts upon them
