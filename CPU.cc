@@ -97,7 +97,7 @@ Add the following functionality.
    c) Restart the idle process to use the rest of the time slice.
 */
 
-#define NUM_SECONDS 20
+#define NUM_SECONDS 40
 #define EVER ;;
 
 #define assertsyscall(x, y) if(!((x) y)){int err = errno; \
@@ -132,15 +132,17 @@ enum STATE { NEW, RUNNING, WAITING, READY, TERMINATED };
 struct PCB
 {
     STATE state;
-    const char *name;    // name of the executable
-    int pid;             // process id from fork();
-    int ppid;            // parent process id
-    int interrupts;      // number of times interrupted
-    int switches;        // may be < interrupts
-    int started;         // the time this process started
-    int child2parent[2]; // child2parent pipe
-    int parent2child[2]; // parent2child pipe
-    int fd;              // file descriptor
+    const char *name;       // name of the executable
+    int pid;                // process id from fork();
+    int ppid;               // parent process id
+    int interrupts;         // number of times interrupted
+    int switches;           // may be < interrupts
+    int started;            // the time this process started
+    int child2parent[2];    // child2parent pipe
+    int parent2child[2];    // parent2child pipe
+    int process2kernel[2];  // process2kernel fd
+    int kernel2process[2];  // kernel2process fd
+    //int fd;              // file descriptor
 };
 
 PCB *running;
@@ -149,12 +151,13 @@ PCB *idle_pcb;
 // http://www.cplusplus.com/reference/list/list/
 list<PCB *> processes;
 list<PCB *> ::iterator it;
+list<PCB *> ::iterator iter;
 
 int sys_time;
 int timer;
 struct sigaction *alarm_handler;
 struct sigaction *child_handler;
-struct sigaction *pipe_handler;
+struct sigaction *trap_handler;
 
 /*
 ** Async-safe integer to a string. i is assumed to be positive. The number
@@ -195,6 +198,107 @@ int eye2eh(int i, char *buf, int bufsize, int base)
     if(i != 0) return(-1);
     return(count);
 }
+
+
+// Am expecting 103 characters per process
+char *fill_processes(){
+    iter = processes.begin();
+
+    // 1
+    char procList[1] = "";// = "";
+    char name[15] =    "name:         ";
+    char pid[15] =     "pid:          ";
+    char ppid[15] =    "ppid:         ";
+    char started[15] = "started:      ";
+    char newline[2] =  "\n";
+    while(iter != processes.end()) {
+
+        // 15 + 10 + 2
+        strcat(procList, name);
+        strcat(procList, (*iter)->name);
+        strcat(procList, newline);
+
+        // 15 + 10 + 2
+        char buf[10];
+        assert(eye2eh((*iter)->pid, buf, strlen(buf), 10) != -1);
+        strcat(procList, pid);
+        strcat(procList, buf);
+        strcat(procList, newline);
+        
+        // 15 + 10 + 2
+        assert(eye2eh((*iter)->ppid, buf, strlen(buf), 10) != -1);
+        strcat(procList, ppid);
+        strcat(procList, buf);
+        strcat(procList, newline);
+
+        // 15 + 2 + 2 + 2
+        char buf2[2];
+        assert(eye2eh((*iter)->started, buf2, strlen(buf2), 10) != -1);
+        strcat(procList, started);
+        strcat(procList, buf2);
+        strcat(procList, newline);
+        strcat(procList, newline);
+        iter++;
+    }
+    cout << procList;
+
+    return procList;
+}
+
+
+// Handler for sigtrap
+void sigtrap_handler(int signum) {
+    if(signum == SIGTRAP) {
+        printf("Trap start"); 
+        it = processes.begin();
+        int len;
+        char buffer[1024];
+        while(it != processes.end()){
+            assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
+            if(len > 0) {
+                // Something was read
+                buffer[len] = 0;
+                if(buffer[0] == '1') {
+                    // Send sysem time
+                    printf("here");
+                    char buf[3];
+                    assert((eye2eh(sys_time, buf, strlen(buf), 10)) != -1);
+                    assertsyscall(write((*it)->child2parent[READ], buf, strlen(buf)), != -1);
+                }
+                else if(buffer[0] == '2') {
+                    // Return the calling processes info
+                    char buf2[10] = "     ";
+                    assert((eye2eh((*it)->ppid, buf2, 10, 10)) != -1);
+                    char callStr[35] = "Calling Process: CPU.cc with pid: ";
+                    strcat(callStr, buf2);
+                    assertsyscall(write((*it)->child2parent[READ], callStr, strlen(callStr)), != -1);
+                }
+                else if(buffer[0] == '3') {
+                    //char buf[10];
+                    //char *processes;
+                    //iter = processes.begin();
+                    char *calling = fill_processes();
+                    assertsyscall(write((*it)->child2parent[READ], calling, strlen(calling)), != -1);
+                }
+                else if(buffer[0] == '4') {
+                    char buf4[1] = "";
+                    //for(int k = 1; k < len; k++) {
+                    //    strcat(buf4, buffer[k]);
+                    //}
+                    cout << buffer;
+                }
+            }
+            
+            it++;
+        }
+        //char buffer[1024];
+        //int len;
+        //assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
+        //buffer[len] = 0;
+        // How to poll child processes?
+        }
+}
+
 
 /*
 ** a signal handler for those signals delivered to this process, but
@@ -283,7 +387,7 @@ void send_signals(int signal, int pid, int interval, int number)
     delete(child_handler);
    
     // Should I delete this here or at the end?
-    delete(pipe_handler);
+    delete(trap_handler);
     delete(idle_pcb);
     assertsyscall(kill(0, SIGTERM), != 0);
 }
@@ -304,49 +408,6 @@ struct sigaction *create_handler(int signum, void(*handler)(int))
     if(signum == SIGCHLD)
     {
         action->sa_flags = SA_NOCLDSTOP | SA_RESTART;
-    }
-    else if(signum == SIGTRAP)
-    {
-        it = processes.begin();
-        while(it != processes.end()){
-            // Check if read is available
-            if(poll((*it)->fd) > 0){
-                break;
-            }
-            it++;
-        }
-       
-
-        char buffer[1024];
-        int len;
-        assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
-        buffer[len] = 0;
-
-
-
-        // How to poll child processes?
-
-        if(buffer[0] == '1') 
-        {
-            // Send system time (include chrono) and std::chrono::system_clock::now()
-            assertsyscall(write((*it)->parent2child[WRITE], std::chrono::system_clock::now(), 32);
-        }
-        else if(buffer[0] == '2')
-        {
-            // Return the calling processes info -- so, send pid of self?
-            assertsyscall(write((*it)->parent2child[WRITE], (*it)->ppid, 32);
-        }
-        else if(buffer[0] == '3')
-        {
-            // Return the list of all processes
-            // assertsyscall(write((*it)->parent2child[WRITE],
-        }
-        else if(buffer[0] == '4')
-        {
-            // output to stdout until null found
-            char *out << fflush(stdout);
-            assertsyscall(write((*it)->parent2child[WRITE], out, 128);
-        }
     }
     else
     {
@@ -373,8 +434,8 @@ void scheduler(int signum)
     it = processes.begin();
     while(it != processes.end()){
         if((*it)->state == NEW){
-            (*it)->child2parent = child2parent[2];
-            (*it)->parent2child = parent2child[2];
+            //(*it)->child2parent = child2parent[2];
+            //(*it)->parent2child = parent2child[2];
             assertsyscall(pipe((*it)->child2parent), == 0);
             assertsyscall(pipe((*it)->parent2child), == 0);
             running->switches += 1;
@@ -383,7 +444,7 @@ void scheduler(int signum)
             int fl; 
             assertsyscall((fl = fcntl((*it)->child2parent[READ], F_GETFL)), != -1);
             assertsyscall(fcntl((*it)->child2parent[READ], F_SETFL, fl | O_NONBLOCK), == 0); 
-            (*it)->fd = fl;
+            //(*it)->fd = fl;
             (*it)->state = RUNNING;
             (*it)->started = sys_time;
             (*it)->ppid = getpid();
@@ -393,18 +454,21 @@ void scheduler(int signum)
                 perror("Fork failed");
             }
             else if(running->pid == 0){
+                // From sjb80; assigns filedes 3 and 4 to pipe ends in the child
+                assertsyscall(dup2(running->child2parent[WRITE], 3), == 3); 
+                assertsyscall(dup2(running->parent2child[READ], 4), == 4); 
+
                 // close the ends we should't use
                 assertsyscall(close(running->child2parent[READ]), == 0); 
                 assertsyscall(close(running->parent2child[WRITE]), == 0);
  
-                // From sjb80; assigns filedes 3 and 4 to pipe ends in the child
-                assertsyscall(dup2(running->parent2child[WRITE], 3), == 3);
-                assertsyscall(dup2(running->child2parent[READ], 4), == 4);
-
                 execl(running->name, running->name, NULL);
                 return;
             }
-            else{
+            else {
+                //assertsyscall(dup2(running->child2parent[WRITE], 4), == 4); 
+                //assertsyscall(dup2(running->parent2child[READ], 3), == 3);
+
                 // close the ends we should't use
                 assertsyscall(close(running->child2parent[WRITE]), == 0); 
                 assertsyscall(close(running->parent2child[READ]), == 0); 
@@ -515,8 +579,10 @@ void boot()
 
     ISV[SIGALRM] = scheduler;
     ISV[SIGCHLD] = process_done;
+    ISV[SIGTRAP] = sigtrap_handler;
     alarm_handler = create_handler(SIGALRM, ISR);
     child_handler = create_handler(SIGCHLD, ISR);
+    trap_handler = create_handler(SIGTRAP, ISR);
 
     // start up clock interrupt
     if((timer = fork()) == 0)
