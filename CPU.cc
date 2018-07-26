@@ -659,5 +659,5 @@ int main(int argc, char **argv)
     delete(idle_pcb);
     delete(*it);
 
-    exit(0);
+    return 0;
 }
