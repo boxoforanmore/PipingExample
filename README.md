@@ -5,19 +5,21 @@
  - child.cc writes to pipes, sends traps and receives relevant messages that will eventually be passed back and printed by CPU.cc
 
 
-Requirements:
+**Requirements:**
  - `g++`
 
-Optional:
+**Optional:**
  - `valgrind`
  - `clang-tidy`
 
+
 Run on a Unix system with:
 
-`./bashme.sh`
+ - `./bashme.sh`
+
 
 
 
 Run on a Linux system (if optional components installed) with:
 
-`./travis.sh`
+ - `./travis.sh`
