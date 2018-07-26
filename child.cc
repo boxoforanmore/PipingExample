@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
     //parent2child = strtol(argv[2], NULL, 10);
 
     char one[2] = "1"; 
+    printf("I'm ogre here");
+    fflush(stdout);
     assertsyscall(write(WRITE, one, strlen(one)), > 0);
     //sleep(.5);
     assert(kill(parent, SIGTRAP) == 0); 

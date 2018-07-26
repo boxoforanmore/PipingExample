@@ -244,7 +244,6 @@ char* fill_processes(){
 }
 
 
-
 /*
 ** a signal handler for those signals delivered to this process, but
 ** not already handled.
@@ -284,6 +283,7 @@ void ISR(int signum)
     ISV[signum](signum);
 }
 
+
 /*
 ** an overloaded output operator that prints a PCB
 */
@@ -299,6 +299,7 @@ ostream& operator <<(ostream &os, struct PCB *pcb)
     return(os);
 }
 
+
 /*
 ** an overloaded output operator that prints a list of PCBs
 */
@@ -311,6 +312,7 @@ ostream& operator <<(ostream &os, list<PCB *> which)
     }
     return(os);
 }
+
 
 /*
 **  send signal to process pid every interval for number of times.
@@ -332,7 +334,7 @@ void send_signals(int signal, int pid, int interval, int number)
     delete(child_handler);
    
     // Should I delete this here or at the end?
-    delete(trap_handler);
+    //delete(trap_handler);
     delete(idle_pcb);
     assertsyscall(kill(0, SIGTERM), != 0);
 }
@@ -399,13 +401,13 @@ void scheduler(int signum)
                 perror("Fork failed");
             }
             else if(running->pid == 0){
-                // From sjb80; assigns filedes 3 and 4 to pipe ends in the child
-                assertsyscall(dup2(running->child2parent[WRITE], 3), == 3); 
-                assertsyscall(dup2(running->parent2child[READ], 4), == 4); 
-
                 // close the ends we should't use
                 assertsyscall(close(running->child2parent[READ]), == 0); 
                 assertsyscall(close(running->parent2child[WRITE]), == 0);
+
+                // From sjb80; assigns filedes 3 and 4 to pipe ends in the child
+                assertsyscall(dup2(running->child2parent[WRITE], 3), == 3); 
+                assertsyscall(dup2(running->parent2child[READ], 4), == 4); 
  
                 execl(running->name, running->name, NULL);
                 return;
@@ -477,8 +479,10 @@ void scheduler(int signum)
 
 // Handler for sigtrap
 void sigtrap_handler(int signum) {
+
+    printf("It's all ogre now");
+    fflush(stdout);
     if(signum == SIGTRAP) {
-        printf("Trap start");
         it = processes.begin();
         int len;
         char buffer[1024];
@@ -655,5 +659,5 @@ int main(int argc, char **argv)
     delete(idle_pcb);
     delete(*it);
 
-    return 0;
+    exit(0);
 }
