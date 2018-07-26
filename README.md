@@ -6,16 +6,15 @@
 
 
 Requirements:
-```g++```
+ - `g++`
 
 Optional:
-```
-valgrind
-clang-tidy```
+ - `valgrind`
+ - `clang-tidy`
 
 Run on a Unix system with:
 `./bashme.sh`
 
 
 Run on a Linux system (if optional components installed) with:
-`./travis.sh
+`./travis.sh`
