@@ -244,59 +244,6 @@ char* fill_processes(){
 }
 
 
-// Handler for sigtrap
-void sigtrap_handler(int signum) {
-    if(signum == SIGTRAP) {
-        printf("Trap start"); 
-        it = processes.begin();
-        int len;
-        char buffer[1024];
-        while(it != processes.end()){
-            assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
-            if(len > 0) {
-                // Something was read
-                buffer[len] = 0;
-                if(buffer[0] == '1') {
-                    // Send sysem time
-                    printf("here");
-                    char buf[3];
-                    assert((eye2eh(sys_time, buf, strlen(buf), 10)) != -1);
-                    assertsyscall(write((*it)->child2parent[READ], buf, strlen(buf)), != -1);
-                }
-                else if(buffer[0] == '2') {
-                    // Return the calling processes info
-                    char buf2[10] = "     ";
-                    assert((eye2eh((*it)->ppid, buf2, 10, 10)) != -1);
-                    char callStr[35] = "Calling Process: CPU.cc with pid: ";
-                    strcat(callStr, buf2);
-                    assertsyscall(write((*it)->child2parent[READ], callStr, strlen(callStr)), != -1);
-                }
-                else if(buffer[0] == '3') {
-                    //char buf[10];
-                    //char *processes;
-                    //iter = processes.begin();
-                    char *calling = fill_processes();
-                    assertsyscall(write((*it)->child2parent[READ], calling, strlen(calling)), != -1);
-                }
-                else if(buffer[0] == '4') {
-                    //char buf4[1] = "";
-                    //for(int k = 1; k < len; k++) {
-                    //    strcat(buf4, buffer[k]);
-                    //}
-                    cout << buffer;
-                }
-            }
-            
-            it++;
-        }
-        //char buffer[1024];
-        //int len;
-        //assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
-        //buffer[len] = 0;
-        // How to poll child processes?
-        }
-}
-
 
 /*
 ** a signal handler for those signals delivered to this process, but
@@ -525,6 +472,60 @@ void scheduler(int signum)
         WRITES("\n"); 
    }
     WRITES("---- leaving scheduler\n");
+}
+
+
+// Handler for sigtrap
+void sigtrap_handler(int signum) {
+    if(signum == SIGTRAP) {
+        printf("Trap start");
+        it = processes.begin();
+        int len;
+        char buffer[1024];
+        while(it != processes.end()){
+            assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
+            if(len > 0) {
+                // Something was read
+                buffer[len] = 0;
+                if(buffer[0] == '1') {
+                    // Send sysem time
+                    printf("here");
+                    char buf[3];
+                    assert((eye2eh(sys_time, buf, strlen(buf), 10)) != -1);
+                    assertsyscall(write((*it)->child2parent[READ], buf, strlen(buf)), != -1);
+                }   
+                else if(buffer[0] == '2') {
+                    // Return the calling processes info
+                    char buf2[10] = "     ";
+                    assert((eye2eh((*it)->ppid, buf2, 10, 10)) != -1);
+                    char callStr[35] = "Calling Process: CPU.cc with pid: ";
+                    strcat(callStr, buf2);
+                    assertsyscall(write((*it)->child2parent[READ], callStr, strlen(callStr)), != -1);
+                }   
+                else if(buffer[0] == '3') {
+                    //char buf[10];
+                    //char *processes;
+                    //iter = processes.begin();
+                    char *calling = fill_processes();
+                    assertsyscall(write((*it)->child2parent[READ], calling, strlen(calling)), != -1);
+                }   
+                else if(buffer[0] == '4') {
+                    //char buf4[1] = "";
+                    //for(int k = 1; k < len; k++) {
+                    //    strcat(buf4, buffer[k]);
+                    //} 
+                    cout << buffer;
+                }   
+            }   
+        
+            it++;
+        }   
+        //char buffer[1024];
+        //int len;
+        //assertsyscall((len = read((*it)->child2parent[READ], buffer, sizeof (buffer))), != -1);
+        //buffer[len] = 0;
+        // How to poll child processes?
+    }   
 }
 
 
