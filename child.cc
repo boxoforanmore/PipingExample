@@ -31,7 +31,9 @@ int main(int argc, char *argv[]) {
     char one[2] = "1"; 
     printf("I'm ogre here");
     fflush(stdout);
-    assertsyscall(write(WRITE, one, strlen(one)), > 0);
+    assertsyscall(write(WRITE, one, strlen(one)), != -1);
+    printf("Here, here, here, here, here, here, here");
+    fflush(stdout);
     //sleep(.5);
     assert(kill(parent, SIGTRAP) == 0); 
  
