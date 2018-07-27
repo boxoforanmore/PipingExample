@@ -17,8 +17,8 @@ echo `clang-tidy CPU.cc -- -Imy_project/include -DMY_DEFINES ...`
 echo  
 echo
 echo
-echo "Running valgrind on CPU.cc" 
-echo `valgrind --leak-check=full --show-leak-kinds=all  ./a.out ./child ./child ./child`
+#echo "Running valgrind on CPU.cc" 
+#echo `valgrind --leak-check=full --show-leak-kinds=all  ./a.out ./child ./child ./child`
 echo
 echo
 ./a.out ./child ./child ./child
